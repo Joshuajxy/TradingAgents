@@ -1,0 +1,13 @@
+{
+  "analysis_date": "2025-11-13",
+  "research_depth": 1,
+  "llm_provider": "openai",
+  "quick_think_llm": "gpt-4o-mini",
+  "deep_think_llm": "gpt-4.1-mini",
+  "backend_url": "https://api.openai.com/v1",
+  "tickers": [
+    "NVDA",
+    "AMZN",
+    "INTC"
+  ]
+}

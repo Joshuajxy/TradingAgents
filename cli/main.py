@@ -174,6 +174,63 @@ class MessageBuffer:
 message_buffer = MessageBuffer()
 
 
+def assemble_markdown_summary(selections, config, decision, message_buffer, final_state) -> str:
+    lines = []
+    lines.append("# TradingAgents Run Summary")
+    lines.append("")
+    lines.append("## Run Metadata")
+    lines.append(f"- **Ticker**: {selections['ticker']}")
+    lines.append(f"- **Analysis Date**: {selections['analysis_date']}")
+    lines.append(f"- **LLM Provider**: {config.get('llm_provider', 'unknown')}")
+    lines.append(f"- **Quick Think LLM**: {config.get('quick_think_llm', 'unknown')}")
+    lines.append(f"- **Deep Think LLM**: {config.get('deep_think_llm', 'unknown')}")
+    lines.append(f"- **Backend URL**: {config.get('backend_url', 'n/a')}")
+    lines.append("")
+
+    if decision:
+        lines.append("## Final Decision")
+        lines.append(decision)
+        lines.append("")
+
+    consolidated_report = message_buffer.final_report
+    if not consolidated_report:
+        report_sections = []
+        for name, content in message_buffer.report_sections.items():
+            if content:
+                title = name.replace('_', ' ').title()
+                report_sections.append(f"### {title}\n{content}")
+        consolidated_report = "\n\n".join(report_sections)
+
+    if consolidated_report:
+        lines.append("## Consolidated Reports")
+        lines.append(consolidated_report)
+        lines.append("")
+
+    if final_state.get("final_trade_decision"):
+        lines.append("## Portfolio Manager Output")
+        lines.append(final_state["final_trade_decision"])
+        lines.append("")
+
+    if message_buffer.messages:
+        lines.append("## Discussion Log")
+        for timestamp, msg_type, content in message_buffer.messages:
+            normalized_content = str(content).replace("\n", " ").strip()
+            lines.append(f"- [{timestamp}] **{msg_type}**: {normalized_content}")
+        lines.append("")
+
+    if message_buffer.tool_calls:
+        lines.append("## Tool Calls")
+        for timestamp, tool_name, args in message_buffer.tool_calls:
+            if isinstance(args, dict):
+                args_repr = ", ".join(f"{k}={v}" for k, v in args.items())
+            else:
+                args_repr = str(args)
+            lines.append(f"- [{timestamp}] `{tool_name}`({args_repr})")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def create_layout():
     layout = Layout()
     layout.split_column(
@@ -1096,6 +1153,19 @@ def run_analysis():
 
         # Display the complete final report
         display_complete_report(final_state)
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        summary_filename = f"{selections['ticker']}_{timestamp}_summary.md"
+        summary_path = report_dir / summary_filename
+        summary_content = assemble_markdown_summary(
+            selections,
+            config,
+            decision,
+            message_buffer,
+            final_state,
+        )
+        with open(summary_path, "w", encoding="utf-8") as f:
+            f.write(summary_content)
 
         update_display(layout)
 

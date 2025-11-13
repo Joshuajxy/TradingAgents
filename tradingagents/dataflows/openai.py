@@ -1,12 +1,36 @@
+from typing import Dict
+
 from openai import OpenAI
+
 from .config import get_config
 
 
-def get_stock_news_openai(query, start_date, end_date):
+def _get_client_and_config() -> tuple[OpenAI, Dict]:
     config = get_config()
     client = OpenAI(base_url=config["backend_url"])
+    return client, config
 
-    response = client.responses.create(
+
+def _supports_web_search(config: Dict) -> bool:
+    provider = config.get("llm_provider", "openai")
+    return provider.lower() != "openrouter"
+
+
+def _extract_response_text(response) -> str:
+    output_text = getattr(response, "output_text", None)
+    if output_text:
+        return output_text
+
+    try:
+        return response.output[1].content[0].text
+    except (AttributeError, IndexError, KeyError, TypeError) as exc:
+        raise RuntimeError("Unexpected response format from LLM provider") from exc
+
+
+def get_stock_news_openai(query, start_date, end_date):
+    client, config = _get_client_and_config()
+
+    request_kwargs = dict(
         model=config["quick_think_llm"],
         input=[
             {
@@ -21,27 +45,30 @@ def get_stock_news_openai(query, start_date, end_date):
         ],
         text={"format": {"type": "text"}},
         reasoning={},
-        tools=[
-            {
-                "type": "web_search_preview",
-                "user_location": {"type": "approximate"},
-                "search_context_size": "low",
-            }
-        ],
         temperature=1,
         max_output_tokens=4096,
         top_p=1,
         store=True,
     )
 
-    return response.output[1].content[0].text
+    if _supports_web_search(config):
+        request_kwargs["tools"] = [
+            {
+                "type": "web_search_preview",
+                "user_location": {"type": "approximate"},
+                "search_context_size": "low",
+            }
+        ]
+
+    response = client.responses.create(**request_kwargs)
+
+    return _extract_response_text(response)
 
 
 def get_global_news_openai(curr_date, look_back_days=7, limit=5):
-    config = get_config()
-    client = OpenAI(base_url=config["backend_url"])
+    client, config = _get_client_and_config()
 
-    response = client.responses.create(
+    request_kwargs = dict(
         model=config["quick_think_llm"],
         input=[
             {
@@ -56,27 +83,30 @@ def get_global_news_openai(curr_date, look_back_days=7, limit=5):
         ],
         text={"format": {"type": "text"}},
         reasoning={},
-        tools=[
-            {
-                "type": "web_search_preview",
-                "user_location": {"type": "approximate"},
-                "search_context_size": "low",
-            }
-        ],
         temperature=1,
         max_output_tokens=4096,
         top_p=1,
         store=True,
     )
 
-    return response.output[1].content[0].text
+    if _supports_web_search(config):
+        request_kwargs["tools"] = [
+            {
+                "type": "web_search_preview",
+                "user_location": {"type": "approximate"},
+                "search_context_size": "low",
+            }
+        ]
+
+    response = client.responses.create(**request_kwargs)
+
+    return _extract_response_text(response)
 
 
 def get_fundamentals_openai(ticker, curr_date):
-    config = get_config()
-    client = OpenAI(base_url=config["backend_url"])
+    client, config = _get_client_and_config()
 
-    response = client.responses.create(
+    request_kwargs = dict(
         model=config["quick_think_llm"],
         input=[
             {
@@ -91,17 +121,21 @@ def get_fundamentals_openai(ticker, curr_date):
         ],
         text={"format": {"type": "text"}},
         reasoning={},
-        tools=[
-            {
-                "type": "web_search_preview",
-                "user_location": {"type": "approximate"},
-                "search_context_size": "low",
-            }
-        ],
         temperature=1,
         max_output_tokens=4096,
         top_p=1,
         store=True,
     )
 
-    return response.output[1].content[0].text
+    if _supports_web_search(config):
+        request_kwargs["tools"] = [
+            {
+                "type": "web_search_preview",
+                "user_location": {"type": "approximate"},
+                "search_context_size": "low",
+            }
+        ]
+
+    response = client.responses.create(**request_kwargs)
+
+    return _extract_response_text(response)
